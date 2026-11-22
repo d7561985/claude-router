@@ -40,6 +40,9 @@ icon warns you.
 After a restart nothing needs to be started by hand: the "Claude 2" icon starts the router itself.
 While only the main window is open, Claude handles `claude://` links on its own.
 
+The router's chooser and the icon's warning use the first of English, Russian, German and French in
+your macOS language list (System Settings → General → Language & Region); otherwise English.
+
 Check which app receives the links and which windows are open:
 
 ```bash

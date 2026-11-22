@@ -42,6 +42,10 @@ warnt das Symbol „Claude 2“.
 Nach einem Neustart muss nichts von Hand gestartet werden: Das Symbol „Claude 2“ startet den Router
 selbst. Solange nur das Hauptfenster offen ist, verarbeitet Claude `claude://`-Links selbst.
 
+Das Auswahlfenster des Routers und die Warnung des Symbols erscheinen in der ersten Sprache aus
+Englisch, Russisch, Deutsch und Französisch in Ihrer Sprachliste von macOS (Systemeinstellungen →
+Allgemein → Sprache & Region); sonst auf Englisch.
+
 Prüfen, welche App die Links empfängt und welche Fenster offen sind:
 
 ```bash

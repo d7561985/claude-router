@@ -1,15 +1,15 @@
 #!/bin/zsh
-# Перед запуском «Claude 2»: подтянуть в его профиль то, что приложение держит отдельно
-# в каждой папке профиля, из основного окна. Запускать, только пока второе окно закрыто.
+# Before "Claude 2" starts: bring into its profile, from the main window, what the app keeps
+# separately in each profile folder. Run only while the second window is closed.
 #
-# - список сессий — ссылка на папку основного окна (сессии лежат по аккаунтам, поэтому
-#   каждое окно видит сессии того аккаунта, в который вошло);
-# - MCP приложения (`mcpServers`), переключатели инструментов MCP, установленные
-#   расширения — копия: приложение пишет часть файлов через временный файл и
-#   переименование, ссылка на файл после первой записи стала бы копией;
-# - папки расширений — ссылки.
+# - the session list is a link to the main window's folder (sessions are stored per account,
+#   so each window sees the sessions of the account it is signed in to);
+# - the app's MCP servers (`mcpServers`), MCP tool toggles and installed extensions are
+#   copies: the app writes some files through a temporary file and a rename, so a link to a
+#   file would turn into a copy after the first write;
+# - the extension folders are links.
 #
-# Печатает «same-account», если по последнему входу оба окна в одном аккаунте.
+# Prints "same-account" if both windows were last signed in to the same account.
 set -euo pipefail
 SUPPORT="$HOME/Library/Application Support"
 MAIN="$SUPPORT/Claude"
@@ -22,7 +22,7 @@ link_dir() {
   [ -e "$MAIN/$name" ] || return 0
   if [ -L "$SECOND/$name" ]; then return 0; fi
   if [ -e "$SECOND/$name" ]; then
-    echo "оставляю свою папку второго окна: $name" >&2
+    echo "keeping the second window's own folder: $name" >&2
     return 0
   fi
   ln -s "$MAIN/$name" "$SECOND/$name"

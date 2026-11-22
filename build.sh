@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Собирает ~/Applications/Claude Router.app из main.swift и Info.plist.
+# Builds ~/Applications/Claude Router.app from main.swift and Info.plist.
 set -euo pipefail
 cd "$(dirname "$0")"
 APP="$HOME/Applications/Claude Router.app"
@@ -10,4 +10,4 @@ cp /Applications/Claude.app/Contents/Resources/electron.icns "$APP/Contents/Reso
 swiftc -O main.swift -o "$APP/Contents/MacOS/Claude Router" -framework AppKit
 codesign --force --sign - "$APP"
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP"
-echo "собрано: $APP"
+echo "built: $APP"

@@ -1,13 +1,13 @@
-// Claude Router — принимает ссылки claude:// и отдаёт их нужному окну Claude.
+// Claude Router — receives claude:// links and hands each one to the right Claude window.
 //
-// Зачем: два окна Claude (основное и «Claude 2» со своей папкой профиля) для macOS —
-// одно приложение, и ссылку claude:// система отдаёт одному из них. Ответ входа
-// через Google или SSO уходит не в то окно. Пока обработчик claude:// — роутер,
-// Claude входит через окно входа Apple (ответ сразу в своё окно), а остальные
-// ссылки роутер отдаёт окну, которое выберет человек.
+// Why: two Claude windows (the main one and "Claude 2" with its own profile folder) are
+// one app to macOS, so the system gives a claude:// link to just one of them, and the
+// reply of a Google or SSO sign-in lands in the wrong window. While the router is the
+// claude:// handler, Claude signs in through Apple's sign-in sheet (the reply goes
+// straight to its window), and the router hands other links to the window the person picks.
 //
-// Claude при каждом запуске снова назначает себя обработчиком, поэтому роутер
-// раз в 5 секунд проверяет и возвращает обработчик себе.
+// Claude makes itself the handler again every time it starts, so every 5 seconds the
+// router checks and takes the handler back.
 
 import AppKit
 
@@ -15,7 +15,24 @@ let claudeBundleId = "com.anthropic.claudefordesktop"
 let claudeAppURL = URL(fileURLWithPath: "/Applications/Claude.app")
 let scheme = "claude"
 
-// MARK: - Журнал (без параметров ссылки: в ответах входа там коды)
+// MARK: - Texts in the system language (the first of en, ru, de, fr in the user's list)
+
+struct Texts { let question, main, cancel: String }
+
+let texts: Texts = {
+    let all: [String: Texts] = [
+        "en": Texts(question: "Which Claude window should open the link?", main: "Main", cancel: "Cancel"),
+        "ru": Texts(question: "В какое окно Claude открыть ссылку?", main: "Основное", cancel: "Отмена"),
+        "de": Texts(question: "Welches Claude-Fenster soll den Link öffnen?", main: "Hauptfenster", cancel: "Abbrechen"),
+        "fr": Texts(question: "Quelle fenêtre Claude doit ouvrir le lien ?", main: "Principale", cancel: "Annuler"),
+    ]
+    for id in Locale.preferredLanguages {
+        if let code = Locale.Language(identifier: id).languageCode?.identifier, let t = all[code] { return t }
+    }
+    return all["en"]!
+}()
+
+// MARK: - Log (without link parameters: sign-in replies carry codes there)
 
 let logURL: URL = {
     let dir = FileManager.default.homeDirectoryForCurrentUser
@@ -40,23 +57,23 @@ func safe(_ url: URL) -> String {
     let keys = c?.queryItems?.map(\.name) ?? []
     c?.query = nil
     let base = c?.string ?? "\(scheme)://…"
-    return keys.isEmpty ? base : "\(base) (параметры: \(keys.joined(separator: ", ")))"
+    return keys.isEmpty ? base : "\(base) (parameters: \(keys.joined(separator: ", ")))"
 }
 
-// MARK: - Окна Claude
+// MARK: - Claude windows
 
 struct Instance {
     let app: NSRunningApplication
-    let profileDir: String?   // nil — основное окно (папка по умолчанию)
+    let profileDir: String?   // nil — the main window (default profile folder)
 
     var pid: pid_t { app.processIdentifier }
     var title: String {
-        guard let dir = profileDir else { return "Основной" }
+        guard let dir = profileDir else { return texts.main }
         return (dir as NSString).lastPathComponent.replacingOccurrences(of: "-", with: " ")
     }
 }
 
-/// Аргументы запуска процесса (KERN_PROCARGS2): argc, путь, argv…
+/// Launch arguments of a process (KERN_PROCARGS2): argc, path, argv…
 func arguments(of pid: pid_t) -> [String] {
     var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
     var size = 0
@@ -65,8 +82,8 @@ func arguments(of pid: pid_t) -> [String] {
     guard sysctl(&mib, 3, &buf, &size, nil, 0) == 0, size > 4 else { return [] }
     let argc = buf.withUnsafeBytes { $0.load(as: Int32.self) }
     var i = 4
-    while i < size, buf[i] != 0 { i += 1 }          // путь к программе
-    while i < size, buf[i] == 0 { i += 1 }          // выравнивание
+    while i < size, buf[i] != 0 { i += 1 }          // executable path
+    while i < size, buf[i] == 0 { i += 1 }          // padding
     var out: [String] = []
     while out.count < argc, i < size {
         var j = i
@@ -86,12 +103,12 @@ func instances() -> [Instance] {
                 .map { String($0.dropFirst("--user-data-dir=".count)) }
             return Instance(app: app, profileDir: dir)
         }
-        .sorted { ($0.profileDir ?? "") < ($1.profileDir ?? "") }   // основное — первым
+        .sorted { ($0.profileDir ?? "") < ($1.profileDir ?? "") }   // main window first
 }
 
-// MARK: - Передача ссылки конкретному процессу
+// MARK: - Handing a link to a specific process
 
-/// Событие «открыть ссылку» (GURL) адресом процесса — macOS не выбирает окно сам.
+/// "Open URL" event (GURL) addressed by pid — macOS doesn't pick the window itself.
 func send(_ url: URL, to inst: Instance) -> Bool {
     let target = NSAppleEventDescriptor(processIdentifier: inst.pid)
     let event = NSAppleEventDescriptor(
@@ -104,30 +121,30 @@ func send(_ url: URL, to inst: Instance) -> Bool {
     do {
         _ = try event.sendEvent(options: [.noReply], timeout: 10)
         inst.app.activate()
-        log("отдал \(safe(url)) → \(inst.title) (pid \(inst.pid))")
+        log("sent \(safe(url)) → \(inst.title) (pid \(inst.pid))")
         return true
     } catch {
-        log("не смог отдать \(safe(url)) → \(inst.title) (pid \(inst.pid)): \(error)")
+        log("could not send \(safe(url)) → \(inst.title) (pid \(inst.pid)): \(error)")
         return false
     }
 }
 
 func choose(for url: URL, among list: [Instance]) -> Instance? {
-    // Проверка без окна: `defaults write local.claude.router testPick "Claude 2"` —
-    // один раз выбирает окно по имени и сбрасывается.
+    // Test without the dialog: `defaults write local.claude.router testPick "Claude 2"` —
+    // picks a window by name once, then resets.
     if let pick = UserDefaults.standard.string(forKey: "testPick") {
         UserDefaults.standard.removeObject(forKey: "testPick")
-        log("проверка: выбор «\(pick)» без окна")
+        log("test: picked \"\(pick)\" without the dialog")
         return list.first { $0.title == pick }
     }
     NSApp.activate(ignoringOtherApps: true)
     let alert = NSAlert()
-    alert.messageText = "В какое окно Claude открыть ссылку?"
+    alert.messageText = texts.question
     var c = URLComponents(url: url, resolvingAgainstBaseURL: false)
     c?.query = nil
     alert.informativeText = c?.string ?? url.absoluteString
     for inst in list { alert.addButton(withTitle: inst.title) }
-    alert.addButton(withTitle: "Отмена")
+    alert.addButton(withTitle: texts.cancel)
     let r = alert.runModal().rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
     return r >= 0 && r < list.count ? list[r] : nil
 }
@@ -136,18 +153,18 @@ func route(_ url: URL) {
     let list = instances()
     switch list.count {
     case 0:
-        log("окон Claude нет — запускаю основное с \(safe(url))")
+        log("no Claude windows — starting the main one with \(safe(url))")
         NSWorkspace.shared.open([url], withApplicationAt: claudeAppURL,
                                 configuration: NSWorkspace.OpenConfiguration())
     case 1:
         _ = send(url, to: list[0])
     default:
         if let inst = choose(for: url, among: list) { _ = send(url, to: inst) }
-        else { log("отмена: \(safe(url))") }
+        else { log("cancelled: \(safe(url))") }
     }
 }
 
-// MARK: - Обработчик claude://
+// MARK: - claude:// handler
 
 func currentHandler() -> URL? {
     NSWorkspace.shared.urlForApplication(toOpen: URL(string: "\(scheme)://x")!)
@@ -157,12 +174,12 @@ func claimScheme() {
     let me = Bundle.main.bundleURL.standardizedFileURL
     guard currentHandler()?.standardizedFileURL != me else { return }
     NSWorkspace.shared.setDefaultApplication(at: me, toOpenURLsWithScheme: scheme) { error in
-        log(error.map { "не смог стать обработчиком \(scheme)://: \($0)" }
-            ?? "стал обработчиком \(scheme):// (был \(currentHandler()?.lastPathComponent ?? "?"))")
+        log(error.map { "could not become the \(scheme):// handler: \($0)" }
+            ?? "became the \(scheme):// handler (was \(currentHandler()?.lastPathComponent ?? "?"))")
     }
 }
 
-// MARK: - Приложение
+// MARK: - App
 
 final class Delegate: NSObject, NSApplicationDelegate {
     var timer: Timer?
@@ -174,7 +191,7 @@ final class Delegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ n: Notification) {
-        log("запущен")
+        log("started")
         claimScheme()
         timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in claimScheme() }
     }
@@ -182,15 +199,15 @@ final class Delegate: NSObject, NSApplicationDelegate {
     @objc func handle(_ event: NSAppleEventDescriptor, reply: NSAppleEventDescriptor) {
         guard let s = event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue,
               let url = URL(string: s) else { return }
-        log("пришла \(safe(url))")
+        log("received \(safe(url))")
         route(url)
     }
 }
 
-// Режим проверки из терминала: что запущено и кто обработчик.
+// Check from the terminal: who is the handler and which windows are running.
 if CommandLine.arguments.contains("--status") {
-    print("обработчик \(scheme):// → \(currentHandler()?.path ?? "нет")")
-    for i in instances() { print("\(i.title): pid \(i.pid)\(i.profileDir.map { ", папка \($0)" } ?? "")") }
+    print("\(scheme):// handler → \(currentHandler()?.path ?? "none")")
+    for i in instances() { print("\(i.title): pid \(i.pid)\(i.profileDir.map { ", profile \($0)" } ?? "")") }
     exit(0)
 }
 

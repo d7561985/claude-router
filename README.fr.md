@@ -43,6 +43,10 @@ compte, l'icône « Claude 2 » vous prévient.
 Après un redémarrage, rien à lancer à la main : l'icône « Claude 2 » lance le routeur elle-même. Tant
 que seule la fenêtre principale est ouverte, Claude traite lui-même les liens `claude://`.
 
+La fenêtre de choix du routeur et l'avertissement de l'icône s'affichent dans la première langue,
+parmi l'anglais, le russe, l'allemand et le français, de votre liste de langues macOS (Réglages
+Système → Général → Langue et région) ; sinon en anglais.
+
 Vérifier quelle application reçoit les liens et quelles fenêtres sont ouvertes :
 
 ```bash

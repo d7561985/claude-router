@@ -23,7 +23,7 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Роутер отдаёт ссылки claude:// выбранному окну Claude.</string>
+	<string>The router hands claude:// links to the Claude window you choose.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
