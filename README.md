@@ -1,17 +1,17 @@
 # Claude Router
 
-Run two windows of the Claude desktop app for macOS side by side, each signed in to its own account,
-with working Google/SSO sign-in and shared sessions, skills, plugins and MCP.
+English · [Русский](README.ru.md) · [Deutsch](README.de.md) · [Français](README.fr.md)
 
-Два окна приложения Claude для macOS одновременно, у каждого свой аккаунт: вход через Google и SSO
-работает, сессии, скилы, плагины и MCP общие.
+Run two windows of the Claude desktop app for macOS side by side, each signed in to its own account.
+Google and SSO sign-in work in both, and sessions, skills, plugins and MCP servers are shared.
 
-> Неофициальный инструмент. Он опирается на то, как устроено приложение Claude сейчас (флаг
-> `--user-data-dir`, папки профиля, ссылки `claude://`); обновление приложения может это изменить.
+> Unofficial tool. It relies on how the Claude app works today (the `--user-data-dir` flag, profile
+> folders, `claude://` links); an app update may change that.
 
-## Установка
+## Install
 
-Нужны macOS 13+, приложение Claude в `/Applications` и Command Line Tools (`xcode-select --install`).
+Requires macOS 13+, the Claude app in `/Applications` and the Command Line Tools
+(`xcode-select --install`).
 
 ```bash
 git clone https://github.com/d7561985/claude-router.git ~/projects/claude-router
@@ -21,86 +21,93 @@ git clone https://github.com/d7561985/claude-router.git ~/projects/claude-router
 ~/projects/claude-router/install.sh
 ```
 
-Появятся `~/Applications/Claude Router.app` и значок `~/Applications/Claude 2.app` — его можно
-перетащить в Dock. Повторный запуск `install.sh` обновляет оба.
+This creates `~/Applications/Claude Router.app` and the `~/Applications/Claude 2.app` icon — you can
+drag it to the Dock. Run `install.sh` again to update both.
 
-## Как пользоваться
+## Usage
 
-1. Основное окно — обычный Claude.
-2. Второе окно — значок «Claude 2». Он запускает роутер, подтягивает в профиль второго окна сессии,
-   MCP и расширения основного и открывает второе окно.
-3. Когда открыты оба окна и приходит ссылка `claude://` (например, ответ входа через Google или SSO),
-   роутер спрашивает «В какое окно Claude открыть ссылку?». При входе во втором окне нажмите
-   «Claude 2».
+1. The main window is the regular Claude app.
+2. The second window is the "Claude 2" icon. It starts the router, brings the main window's sessions,
+   MCP servers and extensions into the second window's profile, and opens the second window.
+3. When both windows are open and a `claude://` link arrives (for example, the reply of a Google or
+   SSO sign-in), the router asks which window should open it. When signing in to the second window,
+   choose "Claude 2".
 
-Правило одно: **один аккаунт — в одном окне за раз.** Защиты от двух окон на одной сессии в
-приложении нет. Если по последнему входу оба окна в одном аккаунте, значок «Claude 2» предупредит.
+One rule: **one account in one window at a time.** The app has no protection against two windows
+working on the same session. If both windows were last signed in to the same account, the "Claude 2"
+icon warns you.
 
-Проверка, кто принимает ссылки и какие окна открыты:
+After a restart nothing needs to be started by hand: the "Claude 2" icon starts the router itself.
+While only the main window is open, Claude handles `claude://` links on its own.
+
+Check which app receives the links and which windows are open:
 
 ```bash
 "$HOME/Applications/Claude Router.app/Contents/MacOS/Claude Router" --status
 ```
 
-Журнал роутера — `~/Library/Logs/Claude Router/router.log` (параметры ссылок не пишутся: в ответах
-входа там коды).
+Router log: `~/Library/Logs/Claude Router/router.log` (link parameters are not logged: sign-in replies
+carry codes there).
 
-## Почему так
+## How it works
 
-**Второе окно.** `open -n -a Claude --args --user-data-dir=…/Claude-2` запускает приложение со своей
-папкой профиля: свой вход и свои куки. Блокировку «одно окно» приложение ставит на папку профиля,
-поэтому второе окно не мешает первому.
+**Second window.** `open -n -a Claude --args --user-data-dir=…/Claude-2` starts the app with its own
+profile folder: its own sign-in and cookies. The app's single-instance lock is per profile folder, so
+the second window does not interfere with the first.
 
-**Вход.** Вход через Google и SSO приложение ведёт в браузере, а ответ возвращает ссылкой `claude://`.
-Для macOS оба окна — одно приложение, и ссылку получает основное окно; второе так и не входит (в
-журнале основного — `Google sign-in code does not answer a sign-in this app started; ignoring`).
-Роутер — обработчик `claude://`: при двух окнах спрашивает, куда, и отдаёт ссылку выбранному
-процессу событием «открыть ссылку» (GURL) по его pid. Пока обработчик не Claude, приложение по своему
-коду может входить окном входа Apple, которое возвращает ответ прямо в своё окно. Claude при каждом
-запуске снова назначает себя обработчиком `claude://` — роутер раз в 5 секунд возвращает его себе.
+**Sign-in.** The app runs Google and SSO sign-in in the browser and gets the reply back as a
+`claude://` link. To macOS both windows are the same app, so the link goes to the main window and the
+second one never signs in (the main window's log says
+`Google sign-in code does not answer a sign-in this app started; ignoring`). The router is the
+`claude://` handler: with two windows open it asks where to send the link and hands it to the chosen
+process as an "open URL" event (GURL) addressed by its pid. While Claude is not the handler, the app's
+own code may sign in through Apple's sign-in sheet, which returns the reply straight to its window.
+Claude makes itself the `claude://` handler again every time it starts, so the router takes it back
+every 5 seconds.
 
-**Что общее у окон:**
+**What the windows share:**
 
-- Само собой — `~/.claude` (приложение эту папку не меняет): CLAUDE.md, скилы, `settings.json`,
-  плагины Claude Code, MCP из `~/.claude.json` и `.mcp.json` проектов, память, файлы разговоров.
-- Через `sync-profile.sh` перед каждым запуском «Claude 2»: список сессий — ссылка на папку основного
-  окна (сессии лежат по аккаунтам, поэтому каждое окно видит сессии своего аккаунта), папки
-  расширений — ссылки; MCP приложения (`mcpServers`), переключатели инструментов MCP и список
-  расширений — копия. Копия, а не ссылка: приложение пишет часть файлов через временный файл и
-  переименование, и ссылка на файл после первой записи стала бы копией. Источник — основное окно:
-  MCP добавлять там.
-- Не связать — то, что хранится у аккаунта на сервере: коннекторы (Gmail, Drive, Calendar), плагины,
-  включённые на аккаунте, чаты claude.ai.
+- Automatically — `~/.claude` (the app doesn't change this folder): CLAUDE.md, skills,
+  `settings.json`, Claude Code plugins, MCP servers from `~/.claude.json` and project `.mcp.json`
+  files, memory, conversation files.
+- Through `sync-profile.sh`, before each start of "Claude 2": the session list is a link to the main
+  window's folder (sessions are stored per account, so each window sees the sessions of its own
+  account), the extension folders are links; the app's MCP servers (`mcpServers`), MCP tool toggles
+  and the extension list are copies. Copies, not links: the app writes some files through a temporary
+  file and a rename, so a link to a file would turn into a copy after the first write. The source is
+  the main window: add MCP servers there.
+- Can't be linked — what an account keeps on the server: connectors (Gmail, Drive, Calendar),
+  plugins enabled on the account, claude.ai chats.
 
-## Если во втором окне другой способ входа
+## If the second window offers a different sign-in
 
-Профиль может уйти в режим стороннего провайдера: вход токеном Anthropic Console, обычного входа
-claude.ai нет, журнал пишется в `~/Library/Logs/Claude-3p/`. Признак —
-`"deploymentMode": "3p"` в `~/Library/Application Support/Claude-2-3p/claude_desktop_config.json`.
-Закройте второе окно, поставьте там `"1p"` и откройте его снова значком «Claude 2».
+A profile can switch to third-party provider mode: sign-in with an Anthropic Console token, no
+regular claude.ai sign-in, logs written to `~/Library/Logs/Claude-3p/`. The sign is
+`"deploymentMode": "3p"` in `~/Library/Application Support/Claude-2-3p/claude_desktop_config.json`.
+Close the second window, set it to `"1p"` there and open the window again with the "Claude 2" icon.
 
-## Как убрать
+## Uninstall
 
 ```bash
 pkill -x "Claude Router"; rm -rf "$HOME/Applications/Claude Router.app" "$HOME/Applications/Claude 2.app"
 ```
 
-Обработчиком `claude://` Claude снова станет при следующем своём запуске. Папка профиля второго
-окна остаётся в `~/Library/Application Support/Claude-2`; её ссылка на сессии основного окна —
-`claude-code-sessions` (удаление ссылки сессии не трогает).
+Claude becomes the `claude://` handler again the next time it starts. The second window's profile
+folder stays in `~/Library/Application Support/Claude-2`; its link to the main window's sessions is
+`claude-code-sessions` (removing the link doesn't touch the sessions).
 
-## Файлы
+## Files
 
-| Файл | Что делает |
+| File | What it does |
 |---|---|
-| `main.swift`, `Info.plist`, `build.sh` | роутер `~/Applications/Claude Router.app` |
-| `claude2-launcher.applescript` | значок «Claude 2» |
-| `sync-profile.sh` | подтягивает сессии, MCP и расширения основного окна во второе |
-| `install.sh` | собирает и ставит всё это |
+| `main.swift`, `Info.plist`, `build.sh` | the router, `~/Applications/Claude Router.app` |
+| `claude2-launcher.applescript` | the "Claude 2" icon |
+| `sync-profile.sh` | brings the main window's sessions, MCP servers and extensions into the second window |
+| `install.sh` | builds and installs all of the above |
 
-Проверка окна выбора без окна: `defaults write local.claude.router testPick "Claude 2"` — следующая
-ссылка уйдёт в «Claude 2», настройка сбросится.
+Testing the chooser without the dialog: `defaults write local.claude.router testPick "Claude 2"` —
+the next link goes to "Claude 2", then the setting resets.
 
-## Лицензия
+## License
 
 MIT
